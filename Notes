@@ -1,15 +1,4 @@
-Creating a private package
+https://uoftcoders.github.io/studyGroup/lessons/python/packages/lesson/
 
-Mainly this:
-https://medium.com/@christopherdavies553/creating-and-sharing-private-python-packages-689c73ce01ff
-
-But also this for the complexity rather than a noddy example. I did not do testing.
-https://medium.com/38th-street-studios/creating-your-first-python-package-181c5e31f3f8
-
-
-Package is on PyPRI
-User: is the cloud version
-Pass: usual.usual.PyPri
-
-to install:
-pip install lambda-helpers -i https://api.python-private-package-index.com/wbacnAf2x/
+Creating a package in a git repo then installing with something like:
+pip install git+https://github.com/jladan/package_demo.git#egg=measurements

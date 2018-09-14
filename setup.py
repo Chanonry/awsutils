@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='helpers',
+    name='awsutils',
     version='0.1.1',
     author="Andy Spence",
-    author_email="andy.spence@icloud.com",
+    author_email="",
     description="Helper fn's for aws s3 and SQS",
     packages=find_packages(),
     install_requires=[],
