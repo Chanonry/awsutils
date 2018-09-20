@@ -113,7 +113,7 @@ def send_message(sqs, logger, url, message):
     return response
 
 
-def process_msg(sqs, logger, url, message_parser):
+def get_msg(sqs, logger, url):
     """
     retrieve a message from aws SQS
 
@@ -138,26 +138,7 @@ def process_msg(sqs, logger, url, message_parser):
             logger.error('sqs: {} -  message received HTTPStatus != 200'.format(url))
             raise ClientError
 
-        try:
-            response['Messages']
-        except KeyError as exp:
-            logger.error('sqs: {} - NO MESSAGE RETURNED {}'.format(url, response))
-            raise KeyError
-        else:
-            logger.info('sqs: {} - LOOPING THROUGH RECEIVED SQS MESSAGES:'.format(url))
-            for count, message in enumerate(response['Messages']):
-                action = message['Body']
-                receipt_handle = message['ReceiptHandle']
-                http_status = response['ResponseMetadata']['HTTPStatusCode']
-                logger.debug('body: {} - http: {} - receipt: {} '.format(action, receipt_handle, http_status))
-
-                if action == 'STOP':
-                    attributes = ()
-                else:
-                    attributes = message_parser(message['MessageAttributes'])
-
-                yield action, attributes, receipt_handle
-    return
+    return response
 
 
 def del_message(args_class, logger, url, handle):
