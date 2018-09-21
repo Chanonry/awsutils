@@ -3,13 +3,16 @@ module containing AWS SQS fns
 
 flexible data passing between lambda fns
 
-version 0.2.1
+v0.2.2
+- added msg_test to support test q's persisting stack data
+
+v0.2.1
 - all fns accept client
 
-version 0.2.0
+v0.2.0
 - added base64 decoder helper function
 
-version 0.1.0:
+v0.1.0:
 - made code synchronous
 - modified the message to pass a file name plus a data dict
 """
@@ -19,9 +22,31 @@ from botocore.exceptions import ClientError
 import base64 as b64
 
 
-version = '0.2.1'
-date = '01 August 2018'
+version = '0.2.2'
+date = '20 Spetmeber 2018'
 author = 'A Spence'
+
+
+def msg_test(data):
+    """
+    helper to construct a outgoing sqs message
+
+    :param data: str: storage location of images
+    :return: message list
+    """
+    message = [{
+        'Id': '1',
+        'MessageBody': 'test_results',
+        'MessageAttributes': {
+            'Value': {
+                'DataType': 'String',
+                'StringValue': data
+            }
+        }
+    }]
+
+    return message
+
 
 
 def decode_b64(base64_obj):
