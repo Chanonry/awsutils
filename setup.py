@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='awsutils',
-    version='0.1.2',
+    version='0.1.3',
     author="Andy Spence",
     author_email="",
     description="Helper fn's for aws s3 and SQS",

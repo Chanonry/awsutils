@@ -3,12 +3,8 @@ module containing AWS SQS fns
 
 flexible data passing between lambda fns
 
-version 0.0.1
-- pass in the logger from the lambda function
-- no FIFO queues so no dedupId or Group ID
-- let lambda handle the retrying otherwise begin to hit timeouts
-- also removed delays for same reason
-- improved exception handling
+version 0.2.1
+- all fns accept client
 
 version 0.2.0
 - added base64 decoder helper function
@@ -23,7 +19,7 @@ from botocore.exceptions import ClientError
 import base64 as b64
 
 
-version = '0.2.0'
+version = '0.2.1'
 date = '01 August 2018'
 author = 'A Spence'
 
@@ -141,7 +137,7 @@ def get_msg(sqs, logger, url):
     return response
 
 
-def del_message(args_class, logger, url, handle):
+def del_message(sqs, logger, url, handle):
     """
     delete an aws SQS message
 
@@ -153,7 +149,7 @@ def del_message(args_class, logger, url, handle):
     logger.debug('in del_message - delete SQS message')
 
     try:
-        del_response = args_class.client.delete_message(
+        del_response = sqs.delete_message(
             QueueUrl=url,
             ReceiptHandle=handle
         )
