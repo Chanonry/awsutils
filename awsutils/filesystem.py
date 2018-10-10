@@ -1,10 +1,25 @@
 """
 module to contain all logic for aws s3 file handling
 
+the decorator remove_return_value is used in the library to create s3 functions which return None
+so can assume the operation is successful if there is no Exception. Fucntions of this type have the prefix s3_
 """
 
 from botocore.exceptions import ClientError
 import os
+from functools import wraps
+
+
+def remove_return_value(func):
+    """
+    decorator to remove the return value of a function
+    see the module Docstring for info on usage
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        return
+    return wrapper
 
 
 def bucket_access(bucket, s3, logger):
@@ -27,6 +42,9 @@ def bucket_access(bucket, s3, logger):
     return access
 
 
+s3_bucket_access = remove_return_value(bucket_access)
+
+
 def key_access(bucket, key, s3, logger):
     """
     test accessibility of file key in a bucket
@@ -47,6 +65,9 @@ def key_access(bucket, key, s3, logger):
         access = True
 
     return access
+
+
+s3_key_access = remove_return_value(key_access)
 
 
 def download(bucket, s3_file, local_file, s3, logger):
@@ -89,6 +110,9 @@ def download(bucket, s3_file, local_file, s3, logger):
     return success
 
 
+s3_download = remove_return_value(download)
+
+
 def upload(bucket, s3_key, local_file, s3, logger):
     """
     uploads a file from local to s3 bucket and retries on errors
@@ -115,6 +139,9 @@ def upload(bucket, s3_key, local_file, s3, logger):
     else:
         success = True
     return success
+
+
+s3_upload = remove_return_value(upload)
 
 
 def move(source_bucket, target_bucket, source_file, target_file, local_file, s3_client, logger):
@@ -155,6 +182,9 @@ def move(source_bucket, target_bucket, source_file, target_file, local_file, s3_
         abort = True
 
     return abort
+
+
+s3_move = remove_return_value(move)
 
 
 def move_core(source_bucket, target_bucket, source_file, target_file, local_file, s3_client, logger):
@@ -204,3 +234,6 @@ def move_core(source_bucket, target_bucket, source_file, target_file, local_file
         move_success = False
 
     return move_success
+
+
+s3_move_core = remove_return_value(move_core)
