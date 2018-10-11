@@ -3,11 +3,29 @@ module to contain all logic for aws s3 file handling
 
 the decorator remove_return_value is used in the library to create s3 functions which return None
 so can assume the operation is successful if there is no Exception. Fucntions of this type have the prefix s3_
+
+Usage:
+
+import from the git repo
+dependencies: tenacity
+
+V2.0.0
+-   added the remove_return_value() decorator to remove the returned flags from the original functions
+    the original functions have been retained for any backwards compatibility
+    new functions added with s3_ prefixes with the same functionality but no flags returned
+-   added s3_download s3_upload and s3_move to give local retrying for some Exceptions
+-   added key_metadata() to return the response object for s3.object_head()
 """
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, BotoCoreError
 import os
 from functools import wraps
+from tenacity import retry, stop_after_attempt, retry_if_exception_type
+
+
+version = '2.0.0'
+date = '11 October 2018'
+author = 'A. Spence'
 
 
 def remove_return_value(func):
@@ -25,6 +43,7 @@ def remove_return_value(func):
 def bucket_access(bucket, s3, logger):
     """
     test accessibility of an s3 bucket
+    None response or exception if not accessible
 
     :param bucket:
     :param s3: s3 client object
@@ -70,8 +89,34 @@ def key_access(bucket, key, s3, logger):
 s3_key_access = remove_return_value(key_access)
 
 
+def key_metadata(bucket, key, s3, logger):
+    """
+    get the metadata for a  file key in a bucket
+
+    :param bucket:
+    :param key:
+    :param s3: s3 client
+    :param logger: logging object
+    :return: access : bool: can access the key
+    """
+    response = None
+
+    try:
+        response = s3.head_object(Bucket=bucket, Key=key)
+    except ClientError:
+        logger.critical("key {f} does not exist or is inaccessible.".format(f=key))
+    else:
+        logger.debug(" key {f} is accessible".format(f=key))
+
+    return response
+
+
 def download(bucket, s3_file, local_file, s3, logger):
     """
+                DEPRICATED
+
+    retained for backward compatibility
+
     download a file from an s3 bucket to local storage
 
     :param bucket: source bucket for the file
@@ -110,12 +155,40 @@ def download(bucket, s3_file, local_file, s3, logger):
     return success
 
 
-s3_download = remove_return_value(download)
+@retry(retry_if_exception_type(IOError), stop=stop_after_attempt(3))
+def s3_download(bucket, s3_file, local_file, s3, logger):
+    """
+    download a file from an s3 bucket to local storage
+
+    botocore automatically retries 5 times so just looging the base Exception
+    retries twice on an IOError as file may be corrupt or something, done locally for speed
+
+    if an Exception is still returned then up to the client to handle it
+
+    :param bucket: source bucket for the file
+    :param s3_file: file
+    :param local_file: path to save s3_file locally
+    :param s3: the configured s3 client
+    :param logger: the configured logger object
+    """
+
+    try:
+        s3.download_file(Bucket=bucket, Key=s3_file, Filename=local_file)
+    except BotoCoreError as e:  # fundamental error so no retry
+        logger.critical("Unexpected error during file download operation: %s" % e)
+        raise BotoCoreError
+
+    if os.path.isfile(local_file) is False:
+        logger.critical("{f} download possible but not saved locally".format(f=s3_file))
+        raise IOError  # local foobar so forcing a quick retry through the decorator
+    return
 
 
 def upload(bucket, s3_key, local_file, s3, logger):
     """
-    uploads a file from local to s3 bucket and retries on errors
+    DEPRICATED - RETAINED FOR BACKWARDS COMPATIBILITY
+
+    uploads a file from local to s3 bucket
 
     :param bucket: target bucket
     :param s3_key: s3 file key
@@ -141,11 +214,36 @@ def upload(bucket, s3_key, local_file, s3, logger):
     return success
 
 
-s3_upload = remove_return_value(upload)
+@retry(retry_if_exception_type(OSError), stop=stop_after_attempt(2))
+def s3_upload(bucket, s3_key, local_file, s3, logger):
+    """
+    uploads a file from local to s3 bucket and retries on errors
+
+    1 quick retries on OSError, may be more fundamental
+
+    :param bucket: target bucket
+    :param s3_key: s3 file key
+    :param local_file: local file to upload /tmp
+    :param s3: s3 client object
+    :param logger: logger object
+    :return: success : bool: operation successful
+    """
+
+    try:
+        s3.upload_file(Filename=local_file, Bucket=bucket, Key=s3_key)
+    except BotoCoreError as e:  # fundamental error so no retry
+        logger.critical("Unexpected error during file upload operation: %s" % e)
+        raise BotoCoreError
+    except OSError:
+        logger.critical("local file error on upload: {}".format(local_file))
+        raise OSError
+
+    return
 
 
 def move(source_bucket, target_bucket, source_file, target_file, local_file, s3_client, logger):
     """
+    DEPRICATED
     abstracted logic for managed move of a file from one bucket to another
 
     :param source_bucket: bucket containing the original file
@@ -184,11 +282,10 @@ def move(source_bucket, target_bucket, source_file, target_file, local_file, s3_
     return abort
 
 
-s3_move = remove_return_value(move)
-
-
 def move_core(source_bucket, target_bucket, source_file, target_file, local_file, s3_client, logger):
     """
+    DEPRICATED
+
     lowest level code - 'moves' a local file to one s3 bucket and deletes the original after
     checking the upload is successful
 
@@ -210,7 +307,7 @@ def move_core(source_bucket, target_bucket, source_file, target_file, local_file
                          s3=s3_client,
                          logger=logger)
 
-    key_flag = key_access(bucket=target_bucket, key=target_file, s3=s3_client, logger=logger)
+    key_flag = s3_key_access(bucket=target_bucket, key=target_file, s3=s3_client, logger=logger)
 
     if upload_flag and key_flag:
         logger.debug("upload success")
@@ -236,4 +333,49 @@ def move_core(source_bucket, target_bucket, source_file, target_file, local_file
     return move_success
 
 
-s3_move_core = remove_return_value(move_core)
+@retry(retry_if_exception_type(IOError), stop=stop_after_attempt(3))
+def s3_move(source_bucket, target_bucket, source_file, target_file, local_file, s3_client, logger):
+    """
+    'moves' a local file to one s3 bucket and deletes the original after
+
+    checks new file is accessible
+    retries twice if there is a failure
+
+    :param source_bucket:
+    :param target_bucket:
+    :param source_file: file key
+    :param target_file: file key
+    :param local_file:
+    :param s3_client: s3 client object
+    :param logger: logger object
+    :return: move_success : bool: operation successful
+    """
+
+    def raiser(exp):
+        raise IOError('move {} from {} to {} FAILED'.format(target_file, source_bucket, target_bucket))
+
+    # upload the file - no exceptions = success
+    try:
+        s3_upload(bucket=target_bucket,
+                  s3_key=target_file,
+                  local_file=local_file,
+                  s3=s3_client,
+                  logger=logger)
+    except (BotoCoreError, ClientError, OSError) as exp:
+        raiser(exp)
+
+    # it worked but verify file is accessible
+    try:
+        s3_key_access(bucket=target_bucket, key=target_file, s3=s3_client, logger=logger)
+    except (BotoCoreError, ClientError) as exp:
+        raiser(exp)
+    else:
+        logger.debug("upload success")
+
+    # delete the original file from the Stack Bucket
+    try:
+        s3_client.delete_object(Bucket=source_bucket, Key=source_file)
+    except (ClientError, BotoCoreError) as exp:
+        raiser(exp)
+
+    return
